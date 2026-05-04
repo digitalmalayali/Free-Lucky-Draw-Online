@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oxygen Lucky Draw</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --card: #1a1a24;
+    --border: #2a2a38;
+    --fg: #e8e6f0;
+    --muted: #6b6880;
+    --accent: #f0a500;
+    --accent-glow: rgba(240, 165, 0, 0.3);
+    --accent2: #ff4757;
+    --success: #2ed573;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background atmosphere */
+  .bg-atmosphere {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 10%, rgba(240,165,0,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 50% at 80% 80%, rgba(255,71,87,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 80% 60% at 50% 50%, rgba(20,20,35,0.8) 0%, transparent 100%);
+  }
+
+  .floating-orb {
+    position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0;
+    animation: orbFloat 12s ease-in-out infinite alternate;
+  }
+  .floating-orb:nth-child(1) { width: 300px; height: 300px; background: rgba(240,165,0,0.07); top: -50px; left: -50px; }
+  .floating-orb:nth-child(2) { width: 250px; height: 250px; background: rgba(255,71,87,0.05); bottom: -50px; right: -50px; animation-delay: -4s; }
+  .floating-orb:nth-child(3) { width: 200px; height: 200px; background: rgba(46,213,115,0.04); top: 50%; left: 50%; animation-delay: -8s; }
+
+  @keyframes orbFloat {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(30px, -40px) scale(1.15); }
+  }
+
+  /* Noise overlay */
+  .noise-overlay {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Layout */
+  .app-container {
+    position: relative; z-index: 1;
+    max-width: 1400px; margin: 0 auto; padding: 20px; width: 100%;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  /* Header */
+  header {
+    text-align: center; padding: 30px 0 20px;
+  }
+  header h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--accent), #ffd166, var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -1px;
+    line-height: 1.1;
+  }
+  header p {
+    color: var(--muted); font-size: 1rem; margin-top: 8px; font-weight: 200;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex; justify-content: center; gap: 24px; margin: 16px 0 24px;
+    flex-wrap: wrap;
+  }
+  .stat-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--border);
+    padding: 8px 18px; border-radius: 100px;
+    font-size: 0.85rem; transition: all 0.3s;
+  }
+  .stat-item i { color: var(--accent); font-size: 0.8rem; }
+  .stat-item .stat-val { font-family: 'Space Mono', monospace; font-weight: 700; color: var(--accent); }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    gap: 20px; flex: 1;
+  }
+
+  @media (max-width: 1024px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Panels */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .panel-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    font-weight: 600; font-size: 0.9rem;
+  }
+  .panel-header i { color: var(--accent); margin-right: 8px; }
+  .panel-body {
+    padding: 14px; flex: 1; overflow-y: auto;
+  }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(240,165,0,0.03), transparent);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(240,165,0,0.03);
+  }
+  .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
+  .upload-zone i { font-size: 2rem; color: var(--muted); margin-bottom: 10px; display: block; transition: color 0.3s; }
+  .upload-zone:hover i { color: var(--accent); }
+  .upload-zone p { font-size: 0.85rem; color: var(--muted); }
+  .upload-zone .file-types { font-size: 0.7rem; color: var(--border); margin-top: 4px; }
+  .upload-zone input { display: none; }
+
+  /* Controls */
+  .control-group { margin: 16px 0; }
+  .control-group label {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.8rem; color: var(--muted); margin-bottom: 8px;
+  }
+  .control-group label span.val {
+    font-family: 'Space Mono', monospace; color: var(--accent); font-weight: 700;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 6px;
+    background: var(--border); border-radius: 3px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    background: var(--accent); border-radius: 50%; cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-glow);
+    transition: transform 0.2s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  /* Checkbox toggle */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; font-size: 0.85rem;
+  }
+  .toggle-switch {
+    position: relative; width: 42px; height: 22px; cursor: pointer;
+  }
+  .toggle-switch input { display: none; }
+  .toggle-switch .slider {
+    position: absolute; inset: 0; background: var(--border);
+    border-radius: 11px; transition: 0.3s;
+  }
+  .toggle-switch .slider::before {
+    content: ''; position: absolute; width: 16px; height: 16px;
+    left: 3px; top: 3px; background: var(--fg);
+    border-radius: 50%; transition: 0.3s;
+  }
+  .toggle-switch input:checked + .slider { background: var(--accent); }
+  .toggle-switch input:checked + .slider::before { transform: translateX(20px); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 24px; border: none; border-radius: var(--radius);
+    font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.95rem;
+    cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
+  }
+  .btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .btn:hover::after { opacity: 1; }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #d48f00);
+    color: #0a0a0f; box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 30px var(--accent-glow); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled {
+    opacity: 0.4; cursor: not-allowed; transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .btn-secondary {
+    background: var(--surface); color: var(--fg);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger {
+    background: rgba(255,71,87,0.1); color: var(--accent2);
+    border: 1px solid rgba(255,71,87,0.2);
+  }
+  .btn-danger:hover { background: rgba(255,71,87,0.2); }
+
+  .btn-sm { padding: 6px 12px; font-size: 0.78rem; border-radius: 8px; }
+
+  .btn-block { width: 100%; }
+
+  /* Spin display area */
+  .spin-area {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px 20px; position: relative;
+  }
+
+  .spin-stage {
+    position: relative; width: 100%; max-width: 460px;
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Ring decoration */
+  .spin-ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid var(--border);
+    animation: ringPulse 3s ease-in-out infinite;
+  }
+  .spin-ring:nth-child(2) {
+    inset: -15px; border-color: rgba(240,165,0,0.1);
+    animation-delay: -1s;
+  }
+  .spin-ring:nth-child(3) {
+    inset: -30px; border-color: rgba(240,165,0,0.05);
+    animation-delay: -2s;
+  }
+  @keyframes ringPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.02); }
+  }
+
+  /* Spinning active state */
+  .spin-stage.spinning .spin-ring {
+    border-color: var(--accent);
+    animation: ringSpinActive 0.5s linear infinite;
+  }
+  .spin-stage.spinning .spin-ring:nth-child(2) { animation-direction: reverse; }
+  @keyframes ringSpinActive {
+    0% { transform: scale(1) rotate(0deg); opacity: 1; }
+    100% { transform: scale(1) rotate(360deg); opacity: 1; }
+  }
+
+  .spin-glow {
+    position: absolute; inset: 20%; border-radius: 50%;
+    background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+    opacity: 0; transition: opacity 0.5s;
+  }
+  .spin-stage.spinning .spin-glow { opacity: 1; }
+  .spin-stage.winner .spin-glow {
+    opacity: 1;
+    background: radial-gradient(circle, rgba(46,213,115,0.4), transparent 70%);
+  }
+
+  /* Name display in spin area */
+  .spin-name-container {
+    position: relative; z-index: 2;
+    text-align: center; width: 80%; max-height: 200px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+.spin-name-container {
+  width: 100%;
+}
+  .spin-stage.spinning .spin-name { color: var(--accent); }
+  .spin-stage.winner .spin-name {
+    color: var(--success);
+    animation: winnerPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes winnerPop {
+    0% { transform: scale(0.5); opacity: 0; }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .spin-phone {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem; color: var(--muted);
+    margin-top: 8px; position: relative; z-index: 2;
+    transition: color 0.3s;
+  }
+  .spin-stage.winner .spin-phone { color: var(--success); opacity: 0.7; }
+
+  .spin-label {
+    font-size: 0.75rem; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 3px; margin-top: 4px; position: relative; z-index: 2;
+  }
+
+  .spin-actions {
+    display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; justify-content: center;
+  }
+
+  /* Participant list */
+  .participant-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px;
+    font-size: 0.82rem; transition: all 0.3s;
+    border: 1px solid transparent;
+  }
+  .participant-item:hover { background: rgba(240,165,0,0.03); border-color: var(--border); }
+  .participant-item .idx {
+    font-family: 'Space Mono', monospace; font-size: 0.7rem;
+    color: var(--muted); min-width: 24px;
+  }
+  .participant-item .pname { flex: 1; font-weight: 400; }
+  .participant-item .pstatus {
+    font-size: 0.65rem; padding: 2px 8px; border-radius: 100px;
+    font-weight: 600;
+  }
+  .participant-item .pstatus.pending { background: rgba(107,104,128,0.15); color: var(--muted); }
+  .participant-item .pstatus.won { background: rgba(46,213,115,0.15); color: var(--success); }
+  .participant-item.excluded { opacity: 0.3; text-decoration: line-through; }
+
+  /* Winner list */
+  .winner-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 8px;
+    background: rgba(46,213,115,0.04);
+    border: 1px solid rgba(46,213,115,0.1);
+    margin-bottom: 8px;
+    animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes slideIn {
+    0% { transform: translateX(20px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  .winner-item .wrank {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 800; color: #0a0a0f; flex-shrink: 0;
+  }
+  .winner-item .winfo { flex: 1; min-width: 0; }
+  .winner-item .wname { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .winner-item .wphone { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+
+  .empty-state {
+    text-align: center; padding: 30px 10px; color: var(--muted);
+  }
+  .empty-state i { font-size: 2rem; margin-bottom: 10px; display: block; opacity: 0.3; }
+  .empty-state p { font-size: 0.82rem; }
+
+  /* Search */
+  .search-box {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; margin-bottom: 10px;
+    transition: border-color 0.3s;
+  }
+  .search-box:focus-within { border-color: var(--accent); }
+  .search-box i { color: var(--muted); font-size: 0.8rem; }
+  .search-box input {
+    background: none; border: none; outline: none;
+    color: var(--fg); font-family: 'Outfit', sans-serif;
+    font-size: 0.82rem; width: 100%;
+  }
+  .search-box input::placeholder { color: var(--muted); }
+
+  /* Toast notification */
+  .toast-container {
+    position: fixed; top: 20px; right: 20px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    padding: 12px 20px; border-radius: 10px;
+    font-size: 0.85rem; font-weight: 500;
+    display: flex; align-items: center; gap: 10px;
+    animation: toastIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    max-width: 340px;
+  }
+  .toast.success { background: #1a3a2a; color: var(--success); border: 1px solid rgba(46,213,115,0.2); }
+  .toast.error { background: #3a1a1a; color: var(--accent2); border: 1px solid rgba(255,71,87,0.2); }
+  .toast.info { background: #1a2a3a; color: #5dade2; border: 1px solid rgba(93,173,226,0.2); }
+  @keyframes toastIn {
+    0% { transform: translateX(100px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes toastOut {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(100px); opacity: 0; }
+  }
+
+  /* Confetti canvas */
+  #confetti-canvas {
+    position: fixed; inset: 0; z-index: 999; pointer-events: none;
+  }
+
+  /* Winner modal overlay */
+  .winner-overlay {
+    position: fixed; inset: 0; z-index: 998;
+    background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+    animation: fadeIn 0.3s;
+  }
+  .winner-overlay.active { display: flex; }
+  @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+  .winner-modal {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 40px; text-align: center;
+    max-width: 420px; width: 90%;
+    animation: modalPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative; overflow: hidden;
+  }
+  .winner-modal::before {
+    content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+    background: conic-gradient(from 0deg, transparent, rgba(240,165,0,0.05), transparent, rgba(46,213,115,0.05), transparent);
+    animation: modalGlow 4s linear infinite;
+  }
+  @keyframes modalGlow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  @keyframes modalPop {
+    0% { transform: scale(0.7); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .winner-modal > * { position: relative; z-index: 1; }
+  .winner-modal .trophy { font-size: 3rem; margin-bottom: 10px; }
+  .winner-modal .winner-title {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 4px;
+    color: var(--accent); font-weight: 600; margin-bottom: 8px;
+  }
+  .winner-modal .winner-name {
+    font-size: 1.8rem; font-weight: 900; color: var(--success);
+    margin-bottom: 4px; line-height: 1.2;
+  }
+  .winner-modal .winner-phone {
+    font-family: 'Space Mono', monospace; color: var(--muted); font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
+  .winner-modal .btn { min-width: 140px; }
+
+  /* Manual entry */
+  .manual-entry {
+    margin-top: 12px;
+  }
+  .manual-entry textarea {
+    width: 100%; min-height: 80px; resize: vertical;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px; color: var(--fg);
+    font-family: 'Space Mono', monospace; font-size: 0.75rem;
+    outline: none; transition: border-color 0.3s;
+  }
+  .manual-entry textarea:focus { border-color: var(--accent); }
+  .manual-entry textarea::placeholder { color: var(--muted); }
+
+  /* Particle dots on spin stage */
+  .stage-dot {
+    position: absolute; width: 4px; height: 4px;
+    background: var(--accent); border-radius: 50%;
+    opacity: 0; transition: opacity 0.5s;
+  }
+  .spin-stage.spinning .stage-dot {
+    opacity: 0.6;
+    animation: dotOrbit 2s linear infinite;
+  }
+  .spin-stage.winner .stage-dot { opacity: 0; }
+  @keyframes dotOrbit {
+    0% { transform: rotate(0deg) translateX(var(--orbit-r)) rotate(0deg); }
+    100% { transform: rotate(360deg) translateX(var(--orbit-r)) rotate(-360deg); }
+  }
+
+  /* Count badge */
+  .count-badge {
+    background: var(--accent); color: #0a0a0f;
+    font-size: 0.7rem; font-weight: 700;
+    padding: 1px 8px; border-radius: 100px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Export button area */
+  .winner-footer {
+    padding: 10px 14px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px;
+  }
+  .winner-footer .btn { flex: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-atmosphere"></div>
+<div class="floating-orb"></div>
+<div class="floating-orb"></div>
+<div class="floating-orb"></div>
+<div class="noise-overlay"></div>
+
+<canvas id="confetti-canvas"></canvas>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Winner Modal -->
+<div class="winner-overlay" id="winnerOverlay">
+  <div class="winner-modal">
+    <div class="trophy"><i class="fas fa-trophy" style="color: var(--accent);"></i></div>
+    <div class="winner-title" id="modalRank">Winner</div>
+    <div class="winner-name" id="modalName"></div>
+    <div class="winner-phone" id="modalPhone"></div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button class="btn btn-primary" onclick="closeWinnerModal()"><i class="fas fa-check"></i> Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-container">
+  <header>
+    <h1>Free Online Lucky Draw</h1>  
+    <p>Upload your participant list and let fate decide</p>
+  </header>
+
+  <div class="stats-bar">
+    <div class="stat-item">
+      <i class="fas fa-users"></i>
+      <span>Total</span>
+      <span class="stat-val" id="statTotal">0</span>
+    </div>
+    <div class="stat-item">
+      <i class="fas fa-hourglass-half"></i>
+      <span>Remaining</span>
+      <span class="stat-val" id="statRemaining">0</span>
+    </div>
+    <div class="stat-item">
+      <i class="fas fa-crown"></i>
+      <span>Winners</span>
+      <span class="stat-val" id="statWinners">0</span>
+    </div>
+    <div class="stat-item">
+      <i class="fas fa-clock"></i>
+      <span>Spin Time</span>
+      <span class="stat-val" id="statSpinTime">5s</span>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <!-- Left Panel: Upload & Controls -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="panel">
+        <div class="panel-header">
+          <span><i class="fas fa-file-upload"></i> Upload List</span>
+        </div>
+        <div class="panel-body">
+          <div class="upload-zone" id="uploadZone">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p>Drop file here or click to browse</p>
+            <p class="file-types">.csv / .txt supported</p>
+            <input type="file" id="fileInput" accept=".csv,.txt">
+          </div>
+
+          <div class="manual-entry">
+            <p style="font-size:0.75rem;color:var(--muted);margin-bottom:6px;">Or paste names manually:</p>
+            <textarea id="manualInput" placeholder="NAME - PHONE&#10;NAME - PHONE&#10;..."></textarea>
+            <button class="btn btn-secondary btn-sm btn-block" style="margin-top:8px;" onclick="loadManualEntries()">
+              <i class="fas fa-plus"></i> Load Entries
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span><i class="fas fa-sliders-h"></i> Controls</span>
+        </div>
+        <div class="panel-body">
+          <div class="control-group">
+            <label>
+              Spin Duration
+              <span class="val" id="durationVal">5s</span>
+            </label>
+            <input type="range" id="durationSlider" min="1" max="20" value="5" step="0.5">
+          </div>
+
+          <div class="control-group">
+            <label>
+              Speed (Rapid Switch)
+              <span class="val" id="speedVal">20ms</span>
+            </label>
+            <input type="range" id="speedSlider" min="10" max="200" value="20" step="10">
+          </div>
+
+          <div class="toggle-row">
+            <span>Exclude past winners</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="excludeWinners" checked>
+              <div class="slider"></div>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <span>Sound effects</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="soundToggle" checked>
+              <div class="slider"></div>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <span>Confetti on win</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="confettiToggle" checked>
+              <div class="slider"></div>
+            </label>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+            <button class="btn btn-danger btn-sm btn-block" onclick="resetAll()">
+              <i class="fas fa-redo"></i> Reset All
+            </button>
+            <button class="btn btn-secondary btn-sm btn-block" onclick="resetWinners()">
+              <i class="fas fa-undo"></i> Reset Winners Only
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Spin Area -->
+    <div class="panel">
+      <div class="spin-area">
+        <div class="spin-stage" id="spinStage">
+          <div class="spin-ring"></div>
+          <div class="spin-ring"></div>
+          <div class="spin-ring"></div>
+          <div class="spin-glow"></div>
+          <!-- Orbiting dots -->
+          <div class="stage-dot" style="top:50%;left:50%;--orbit-r:140px;"></div>
+          <div class="stage-dot" style="top:50%;left:50%;--orbit-r:140px;animation-delay:-0.7s;"></div>
+          <div class="stage-dot" style="top:50%;left:50%;--orbit-r:140px;animation-delay:-1.4s;"></div>
+          <div class="stage-dot" style="top:50%;left:50%;--orbit-r:180px;animation-delay:-0.35s;animation-duration:3s;"></div>
+          <div class="stage-dot" style="top:50%;left:50%;--orbit-r:180px;animation-delay:-1.05s;animation-duration:3s;"></div>
+          <div class="stage-dot" style="top:50%;left:50%;--orbit-r:180px;animation-delay:-1.75s;animation-duration:3s;"></div>
+
+          <div style="position:relative;z-index:2;text-align:center;">
+            <div class="spin-label" id="spinLabel">READY</div>
+            <div class="spin-name-container">
+              <div class="spin-name" id="spinName">Find The Winner</div>
+            </div>
+            <div class="spin-phone" id="spinPhone"></div>
+          </div>
+        </div>
+
+        <div class="spin-actions">
+          <button class="btn btn-primary" id="spinBtn" disabled onclick="startSpin()">
+            <i class="fas fa-play"></i> Spin
+          </button>
+          <button class="btn btn-secondary" id="stopBtn" style="display:none;" onclick="stopSpin()">
+            <i class="fas fa-stop"></i> Stop Now
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Winners -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="panel" style="flex:1; max-height: 400px;">
+        <div class="panel-header">
+          <span><i class="fas fa-crown"></i> Winners</span>
+          <span class="count-badge" id="winnerCount">0</span>
+        </div>
+        <div class="panel-body" id="winnerList">
+          <div class="empty-state">
+            <i class="fas fa-trophy"></i>
+            <p>No winners yet</p>
+          </div>
+        </div>
+        <div class="winner-footer" id="winnerFooter" style="display:none;">
+          <button class="btn btn-secondary btn-sm" onclick="exportWinners()">
+            <i class="fas fa-download"></i> Export
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="clearWinners()">
+            <i class="fas fa-trash"></i> Clear
+          </button>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:1;">
+        <div class="panel-header">
+          <span><i class="fas fa-list"></i> Participants</span>
+          <span class="count-badge" id="participantCount">0</span>
+        </div>
+        <div class="panel-body" id="participantList">
+          <div class="empty-state">
+            <i class="fas fa-user-friends"></i>
+            <p>No participants loaded</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== State ==========
+let participants = [];
+let winners = [];
+let isSpinning = false;
+let spinInterval = null;
+let spinTimeout = null;
+let stopRequested = false;
+let audioCtx = null;
+
+// ========== DOM References ==========
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const manualInput = document.getElementById('manualInput');
+const durationSlider = document.getElementById('durationSlider');
+const speedSlider = document.getElementById('speedSlider');
+const durationVal = document.getElementById('durationVal');
+const speedVal = document.getElementById('speedVal');
+const spinBtn = document.getElementById('spinBtn');
+const stopBtn = document.getElementById('stopBtn');
+const spinStage = document.getElementById('spinStage');
+const spinName = document.getElementById('spinName');
+const spinPhone = document.getElementById('spinPhone');
+const spinLabel = document.getElementById('spinLabel');
+const winnerList = document.getElementById('winnerList');
+const participantList = document.getElementById('participantList');
+const winnerFooter = document.getElementById('winnerFooter');
+const winnerOverlay = document.getElementById('winnerOverlay');
+const searchBox = document.querySelector('.search-box');
+
+// ========== Audio ==========
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTick() {
+  if (!document.getElementById('soundToggle').checked) return;
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800 + Math.random() * 400, ctx.currentTime);
+    gain.gain.setValueAtTime(0.05, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.05);
+  } catch(e) {}
+}
+
+function playWinSound() {
+  if (!document.getElementById('soundToggle').checked) return;
+  try {
+    const ctx = getAudioCtx();
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.12);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.3);
+      osc.start(ctx.currentTime + i * 0.12);
+      osc.stop(ctx.currentTime + i * 0.12 + 0.3);
+    });
+  } catch(e) {}
+}
+
+// ========== Toast ==========
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+  toast.innerHTML = `<i class="fas ${icons[type]}"></i><span>${message}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toastOut 0.3s forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// ========== File Parsing ==========
+function parseEntry(line) {
+  line = line.trim();
+  if (!line) return null;
+  // Support "NAME - PHONE", "NAME - PHONE", "NAME, PHONE", "NAME	PHONE"
+  let name = '', phone = '';
+  const dashMatch = line.match(/^(.+?)\s*[-–—]\s*(\d[\d\s\-+()]{5,})$/);
+  if (dashMatch) {
+    name = dashMatch[1].trim();
+    phone = dashMatch[2].trim();
+  } else {
+    const commaMatch = line.match(/^(.+?)\s*,\s*(\d[\d\s\-+()]{5,})$/);
+    if (commaMatch) {
+      name = commaMatch[1].trim();
+      phone = commaMatch[2].trim();
+    } else {
+      name = line;
+      phone = '';
+    }
+  }
+  if (!name) return null;
+  return { name, phone, won: false };
+}
+
+function parseFileContent(text) {
+  const lines = text.split(/\r?\n/);
+  const entries = [];
+  for (const line of lines) {
+    const entry = parseEntry(line);
+    if (entry) entries.push(entry);
+  }
+  return entries;
+}
+
+function loadParticipants(entries) {
+  if (entries.length === 0) {
+    showToast('No valid entries found. Use format: NAME - PHONE', 'error');
+    return;
+  }
+  participants = entries;
+  winners = [];
+  updateUI();
+  spinName.textContent = 'Ready to spin';
+  spinPhone.textContent = '';
+  spinLabel.textContent = 'READY';
+  showToast(`Loaded ${entries.length} participants`, 'success');
+}
+
+// ========== File Upload ==========
+uploadZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length > 0) handleFile(e.target.files[0]);
+});
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('drag-over');
+});
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['csv', 'txt'].includes(ext)) {
+    showToast('Please upload a .csv or .txt file', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const entries = parseFileContent(e.target.result);
+    loadParticipants(entries);
+  };
+  reader.onerror = () => showToast('Error reading file', 'error');
+  reader.readAsText(file);
+}
+
+function loadManualEntries() {
+  const text = manualInput.value.trim();
+  if (!text) { showToast('Please enter participant data', 'error'); return; }
+  const entries = parseFileContent(text);
+  loadParticipants(entries);
+  manualInput.value = '';
+}
+
+// ========== Slider Updates ==========
+durationSlider.addEventListener('input', () => {
+  durationVal.textContent = durationSlider.value + 's';
+  document.getElementById('statSpinTime').textContent = durationSlider.value + 's';
+});
+speedSlider.addEventListener('input', () => {
+  speedVal.textContent = speedSlider.value + 'ms';
+});
+
+// ========== Get Eligible Participants ==========
+function getEligible() {
+  const exclude = document.getElementById('excludeWinners').checked;
+  if (!exclude) return [...participants];
+  return participants.filter(p => !p.won);
+}
+
+// ========== Spin Logic ==========
+function startSpin() {
+  const eligible = getEligible();
+  if (eligible.length === 0) {
+    showToast('No eligible participants to draw', 'error');
+    return;
+  }
+  if (eligible.length === 1) {
+    // Only one person, just announce them
+    announceWinner(eligible[0]);
+    return;
+  }
+
+  isSpinning = true;
+  stopRequested = false;
+  spinBtn.style.display = 'none';
+  stopBtn.style.display = 'inline-flex';
+  spinStage.classList.add('spinning');
+  spinStage.classList.remove('winner');
+  spinLabel.textContent = 'SPINNING';
+
+  const duration = parseFloat(durationSlider.value) * 1000;
+  const baseSpeed = parseInt(speedSlider.value);
+  const startTime = Date.now();
+
+  function tick() {
+    if (stopRequested) {
+      // Quick deceleration then pick
+      decelerateAndPick(eligible);
+      return;
+    }
+
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    // Ease-out: slow down towards the end
+    const easedSpeed = baseSpeed + progress * progress * progress * 500;
+    const idx = Math.floor(Math.random() * eligible.length);
+    const p = eligible[idx];
+
+    spinName.textContent = p.name;
+    spinPhone.textContent = p.phone;
+    playTick();
+
+    if (progress >= 1) {
+      // Time's up, final pick with deceleration
+      decelerateAndPick(eligible);
+      return;
+    }
+
+    spinInterval = setTimeout(tick, easedSpeed);
+  }
+
+  tick();
+}
+
+function decelerateAndPick(eligible) {
+  if (spinInterval) clearTimeout(spinInterval);
+  spinInterval = null;
+
+  // Deceleration phase
+  let speed = parseInt(speedSlider.value) + 200;
+  const steps = 8 + Math.floor(Math.random() * 6);
+  let step = 0;
+
+  function decelTick() {
+    step++;
+    speed += 60 + step * 20;
+    const idx = Math.floor(Math.random() * eligible.length);
+    const p = eligible[idx];
+    spinName.textContent = p.name;
+    spinPhone.textContent = p.phone;
+    playTick();
+
+    if (step >= steps) {
+      // Final winner
+      const winnerIdx = Math.floor(Math.random() * eligible.length);
+      announceWinner(eligible[winnerIdx]);
+      return;
+    }
+
+    spinInterval = setTimeout(decelTick, speed);
+  }
+
+  decelTick();
+}
+
+function stopSpin() {
+  stopRequested = true;
+}
+
+function announceWinner(winner) {
+  isSpinning = false;
+  if (spinInterval) clearTimeout(spinInterval);
+  spinInterval = null;
+
+  spinStage.classList.remove('spinning');
+  spinStage.classList.add('winner');
+  spinLabel.textContent = 'WINNER';
+  spinName.textContent = winner.name;
+  spinPhone.textContent = winner.phone;
+
+  spinBtn.style.display = 'inline-flex';
+  stopBtn.style.display = 'none';
+
+  // Mark as won
+  const pIdx = participants.findIndex(p => p.name === winner.name && p.phone === winner.phone);
+  if (pIdx !== -1) participants[pIdx].won = true;
+  winners.push({ ...winner, rank: winners.length + 1 });
+
+  playWinSound();
+
+  // Confetti
+  if (document.getElementById('confettiToggle').checked) {
+    launchConfetti();
+  }
+
+  // Show modal
+  setTimeout(() => {
+    document.getElementById('modalRank').textContent = `Winner #${winners.length}`;
+    document.getElementById('modalName').textContent = winner.name;
+    document.getElementById('modalPhone').textContent = winner.phone || '';
+    winnerOverlay.classList.add('active');
+  }, 400);
+
+  updateUI();
+  showToast(`${winner.name} wins!`, 'success');
+}
+
+function closeWinnerModal() {
+  winnerOverlay.classList.remove('active');
+}
+
+// Close modal on overlay click
+winnerOverlay.addEventListener('click', (e) => {
+  if (e.target === winnerOverlay) closeWinnerModal();
+});
+
+// ========== Confetti ==========
+const confettiCanvas = document.getElementById('confetti-canvas');
+const confettiCtx = confettiCanvas.getContext('2d');
+let confettiPieces = [];
+let confettiAnimating = false;
+
+function resizeConfetti() {
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeConfetti);
+resizeConfetti();
+
+function launchConfetti() {
+  const colors = ['#f0a500', '#ff4757', '#2ed573', '#ffd166', '#5dade2', '#ff6b81', '#a29bfe'];
+  confettiPieces = [];
+  for (let i = 0; i < 150; i++) {
+    confettiPieces.push({
+      x: Math.random() * confettiCanvas.width,
+      y: -20 - Math.random() * 200,
+      w: 6 + Math.random() * 6,
+      h: 4 + Math.random() * 8,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: 2 + Math.random() * 4,
+      rot: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 10,
+      life: 1,
+      decay: 0.003 + Math.random() * 0.004,
+    });
+  }
+  if (!confettiAnimating) {
+    confettiAnimating = true;
+    animateConfetti();
+  }
+}
+
+function animateConfetti() {
+  confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  confettiPieces = confettiPieces.filter(p => p.life > 0);
+
+  if (confettiPieces.length === 0) {
+    confettiAnimating = false;
+    return;
+  }
+
+  for (const p of confettiPieces) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05;
+    p.rot += p.rotSpeed;
+    p.life -= p.decay;
+
+    confettiCtx.save();
+    confettiCtx.translate(p.x, p.y);
+    confettiCtx.rotate((p.rot * Math.PI) / 180);
+    confettiCtx.globalAlpha = Math.max(0, p.life);
+    confettiCtx.fillStyle = p.color;
+    confettiCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    confettiCtx.restore();
+  }
+
+  requestAnimationFrame(animateConfetti);
+}
+
+// ========== UI Update ==========
+function updateUI() {
+  const eligible = getEligible();
+  document.getElementById('statTotal').textContent = participants.length;
+  document.getElementById('statRemaining').textContent = eligible.length;
+  document.getElementById('statWinners').textContent = winners.length;
+  document.getElementById('winnerCount').textContent = winners.length;
+  document.getElementById('participantCount').textContent = participants.length;
+
+  spinBtn.disabled = eligible.length === 0 || isSpinning;
+
+  // Winner list
+  if (winners.length === 0) {
+    winnerList.innerHTML = `<div class="empty-state"><i class="fas fa-trophy"></i><p>No winners yet</p></div>`;
+    winnerFooter.style.display = 'none';
+  } else {
+    winnerFooter.style.display = 'flex';
+    winnerList.innerHTML = winners.map(w => `
+      <div class="winner-item">
+        <div class="wrank">${w.rank}</div>
+        <div class="winfo">
+          <div class="wname">${escapeHtml(w.name)}</div>
+          <div class="wphone">${escapeHtml(w.phone)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Participant list
+  renderParticipantList();
+}
+
+let searchQuery = '';
+function renderParticipantList() {
+  const filtered = participants.filter(p =>
+    p.name.toLowerCase().includes(searchQuery) ||
+    p.phone.includes(searchQuery)
+  );
+
+  if (participants.length === 0) {
+    participantList.innerHTML = `<div class="empty-state"><i class="fas fa-user-friends"></i><p>No participants loaded</p></div>`;
+    return;
+  }
+
+  // Add search box
+  let html = `<div class="search-box"><i class="fas fa-search"></i><input type="text" placeholder="Search participants..." id="participantSearch" value="${escapeHtml(searchQuery)}"></div>`;
+
+  if (filtered.length === 0) {
+    html += `<div class="empty-state"><p>No matches found</p></div>`;
+  } else {
+    html += filtered.map((p, i) => {
+      const realIdx = participants.indexOf(p);
+      return `
+        <div class="participant-item ${p.won ? '' : ''}">
+          <span class="idx">${realIdx + 1}</span>
+          <span class="pname">${escapeHtml(p.name)}</span>
+          <span class="pstatus ${p.won ? 'won' : 'pending'}">${p.won ? 'Won' : 'Pending'}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  participantList.innerHTML = html;
+
+  // Attach search listener
+  const searchInput = document.getElementById('participantSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase();
+      renderParticipantList();
+    });
+    searchInput.focus();
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ========== Actions ==========
+function resetAll() {
+  if (isSpinning) return;
+  participants = [];
+  winners = [];
+  searchQuery = '';
+  spinName.textContent = 'Upload participants to begin';
+  spinPhone.textContent = '';
+  spinLabel.textContent = 'READY';
+  spinStage.classList.remove('winner', 'spinning');
+  updateUI();
+  showToast('Everything has been reset', 'info');
+}
+
+function resetWinners() {
+  if (isSpinning) return;
+  participants.forEach(p => p.won = false);
+  winners = [];
+  spinStage.classList.remove('winner');
+  spinLabel.textContent = 'READY';
+  updateUI();
+  showToast('Winners have been reset', 'info');
+}
+
+function clearWinners() {
+  if (isSpinning) return;
+  participants.forEach(p => p.won = false);
+  winners = [];
+  spinStage.classList.remove('winner');
+  spinName.textContent = 'Ready to spin';
+  spinPhone.textContent = '';
+  spinLabel.textContent = 'READY';
+  updateUI();
+  showToast('Winners cleared', 'info');
+}
+
+function exportWinners() {
+  if (winners.length === 0) return;
+  const text = winners.map(w => `${w.rank}. ${w.name} - ${w.phone}`).join('\n');
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'lucky_draw_winners.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Winners exported successfully', 'success');
+}
+
+// ========== Keyboard Support ==========
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !isSpinning && !winnerOverlay.classList.contains('active') && getEligible().length > 0) {
+    e.preventDefault();
+    startSpin();
+  }
+  if (e.code === 'Space' && isSpinning) {
+    e.preventDefault();
+    stopSpin();
+  }
+  if (e.code === 'Escape' && winnerOverlay.classList.contains('active')) {
+    closeWinnerModal();
+  }
+});
+
+// ========== Init ==========
+updateUI();
+</script>
+</body>
+</html>
